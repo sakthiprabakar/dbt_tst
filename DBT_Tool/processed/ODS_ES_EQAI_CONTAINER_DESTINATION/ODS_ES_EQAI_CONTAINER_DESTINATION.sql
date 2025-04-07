@@ -1,0 +1,95 @@
+{{
+config(
+materialized='incremental',
+unique_key='PK_ODS_ES_EQAI_CONTAINER_DESTINATION_ID',
+merge_no_update_columns = ['SYS_CREATE_DTM'],
+tags=["ods","es-eqai","scheduled-nightly"]
+)
+}}
+-- Read the data from staging table as incrementally
+with CTE_source as (
+select
+*
+from {{ source('STAGING', 'STG_ES_EQAI_CONTAINER_DESTINATION') }}
+{% if is_incremental() %}
+where SF_INSERT_TIMESTAMP > '{{ get_max_event_time('SF_INSERT_TIMESTAMP',not_minus3=True) }}'
+{% endif %}
+)
+-- Apply deduplication logic
+, CTE_dedup as (
+select *
+from CTE_source
+qualify row_number() over (partition by PROFIT_CTR_ID, LINE_ID, RECEIPT_ID, CONTAINER_ID, SEQUENCE_ID, COMPANY_ID order by DATE_MODIFIED desc, SF_INSERT_TIMESTAMP desc) = 1
+)
+
+-- Create a batch id
+, CTE_ins_batch_id as (
+select TO_NUMBER(TO_VARCHAR(CURRENT_TIMESTAMP, 'YYYYMMDDHH24MISSFF3')) as ins_batch_id
+)
+-- Create the final table
+, CTE_final as (
+select
+{{ generate_surrogate_key(['PROFIT_CTR_ID', 'LINE_ID', 'RECEIPT_ID', 'CONTAINER_ID', 'SEQUENCE_ID', 'COMPANY_ID']) }} as PK_ODS_ES_EQAI_CONTAINER_DESTINATION_ID,
+CURRENT_TIMESTAMP as SYS_CREATE_DTM,
+CTE_ins_batch_id.ins_batch_id as SYS_EXEC_ID,
+CURRENT_TIMESTAMP as SYS_LAST_UPDATE_DTM,
+PROFIT_CTR_ID,
+CONTAINER_TYPE,
+RECEIPT_ID,
+LINE_ID,
+CONTAINER_ID,
+SEQUENCE_ID,
+CONTAINER_PERCENT,
+TREATMENT_ID,
+LOCATION_TYPE,
+LOCATION,
+TRACKING_NUM,
+CYCLE,
+DISPOSAL_DATE,
+TSDF_APPROVAL_CODE,
+WASTE_STREAM,
+BASE_TRACKING_NUM,
+BASE_CONTAINER_ID,
+WASTE_FLAG,
+CONST_FLAG,
+STATUS,
+DATE_ADDED,
+DATE_MODIFIED,
+CREATED_BY,
+MODIFIED_BY,
+MODIFIED_FROM,
+TSDF_APPROVAL_BILL_UNIT_CODE,
+COMPANY_ID,
+OB_PROFILE_ID,
+OB_PROFILE_COMPANY_ID,
+OB_PROFILE_PROFIT_CTR_ID,
+TSDF_APPROVAL_ID,
+BASESEQUENCE_ID as BASE_SEQUENCE_ID,
+DISPOSAL_VOL,
+DISPOSAL_VOL_BILLUNITCODE as DISPOSAL_VOL_BILL_UNIT_CODE,
+TRENCH_ID,
+NORTH_GRID_ID,
+EAST_GRID_ID,
+NORTH_COORDINATE,
+EAST_COORDINATE,
+ELEVATION,
+CELL_ID,
+LATITUDE,
+LONGITUDE,
+DEPTH,
+NORTH_EXT_COORDINATE,
+EAST_EXT_COORDINATE,
+X1,
+X2,
+Y1,
+Y2,
+Z1,
+Z2,
+TAX_CODE_UID,
+CONSOLIDATION_GROUP_UID,
+AIR_PERMIT_STATUS_UID,
+SF_INSERT_TIMESTAMP
+from CTE_dedup
+join CTE_ins_batch_id on 1=1
+)
+select * from CTE_final
