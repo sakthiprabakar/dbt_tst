@@ -7,7 +7,14 @@ import io
 import zipfile
 
 def generate_response(prompt):
-    bedrock = boto3.client('bedrock-runtime', region_name="us-east-1")
+    # ---------------- AWS Claude API ----------------
+    bedrock = boto3.client(
+    "bedrock-runtime",
+    region_name=st.secrets["aws_region"],
+    aws_access_key_id=st.secrets["aws_access_key_id"],
+    aws_secret_access_key=st.secrets["aws_secret_access_key"]
+)
+
     model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     payload = {
         "anthropic_version": "bedrock-2023-05-31",
