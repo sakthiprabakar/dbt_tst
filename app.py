@@ -7,14 +7,13 @@ import io
 import zipfile
 
 def generate_response(prompt):
-    # ---------------- AWS Claude API ----------------
+    aws_config = st.secrets["aws"]
     bedrock = boto3.client(
-    "bedrock-runtime",
-    region_name=st.secrets["aws_region"],
-    aws_access_key_id=st.secrets["aws_access_key_id"],
-    aws_secret_access_key=st.secrets["aws_secret_access_key"]
-)
-
+        'bedrock-runtime',
+        aws_access_key_id=aws_config["aws_access_key_id"],
+        aws_secret_access_key=aws_config["aws_secret_access_key"],
+        region_name=aws_config["region_name"]
+    )
     model_id = "anthropic.claude-3-5-sonnet-20240620-v1:0"
     payload = {
         "anthropic_version": "bedrock-2023-05-31",
@@ -33,6 +32,7 @@ def generate_response(prompt):
         return response_body["content"][0]["text"]
     except Exception as e:
         return f"Error: {e}"
+
 
 def generate_zip_from_dbt_string(dbt_string):
     try:
